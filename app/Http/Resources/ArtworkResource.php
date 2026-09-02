@@ -13,13 +13,16 @@ class ArtworkResource extends JsonResource
      *
      * @return array<string, mixed>
      */
-    public function toArray(Request $request): array
+  public function toArray(Request $request): array
     {
+        /** @var Filesystem $disk */
+        $disk = Storage::disk($this->is_private ? 'private' : 'public');
+
         return [
             'id' => $this->id,
             'title' => $this->title,
             'description' => $this->description,
-            'image_url' => Storage::disk($this->is_private ? 'private' : 'public')->url($this->image_path),
+            'image_url' => $disk->url($this->image_path),
             'category' => $this->category,
             'is_private' => $this->is_private,
             'created_at' => $this->created_at->toIso8601String(),

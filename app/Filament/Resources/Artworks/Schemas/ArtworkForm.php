@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\Artworks\Schemas;
 
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
-use Filament\Schemas\Components\TextInput;
-use Filament\Schemas\Components\Textarea;
-use Filament\Schemas\Components\FileUpload;
-use Filament\Schemas\Components\Toggle;
-use Filament\Forms\Get;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Utilities\Get;
 
 class ArtworkForm
 {
@@ -15,7 +15,7 @@ class ArtworkForm
     {
         return $schema
             ->components([
-           TextInput::make('title')
+                TextInput::make('title')
                     ->label('Titre')
                     ->required()
                     ->maxLength(255),
@@ -26,10 +26,12 @@ class ArtworkForm
 
                 FileUpload::make('image_path')
                     ->label('Fichier (Image / Vidéo)')
-                    ->image()
+                    ->acceptedFileTypes(['image/*', 'video/mp4', 'video/quicktime', 'video/webm'])
+                    ->maxSize(102400) 
                     ->required()
-                    ->disk(fn (Get $get) => $get('is_private') ? 'private' : 'public')
-                    ->directory('artworks'),
+                    ->disk(fn(Get $get, ?\App\Models\Artwork $record) => ($get('is_private') ?? $record?->is_private) ? 'private' : 'public')
+                    ->directory('artworks')
+                    ->visibility('public'),
 
                 TextInput::make('category')
                     ->label('Catégorie')
