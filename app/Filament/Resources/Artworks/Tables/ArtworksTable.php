@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Artworks\Tables;
 
 use App\Models\Artwork;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\ImageColumn;
@@ -40,11 +41,12 @@ class ArtworksTable
                 //
             ])
             ->recordActions([
-                EditAction::make(),
+                EditAction::make()->label('Modifier'),
+                DeleteAction::make()->label('Supprimer'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->label('Supprimer'),
                 ]),
             ]);
     }

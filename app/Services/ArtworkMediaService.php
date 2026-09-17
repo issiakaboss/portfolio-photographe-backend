@@ -6,9 +6,54 @@ use Illuminate\Support\Facades\Storage;
 
 class ArtworkMediaService
 {
-    public function thumbnailUrl(string $path, int $width = 960): ?string
+    public function optimize(string $path, string $diskName = 'public', int $maxWidth = 1920, int $quality = 80): ?string
     {
-        $disk = Storage::disk('public');
+        $disk = Storage::disk($diskName);
+        $sourcePath = $disk->path($path);
+
+        if (! is_file($sourcePath)) {
+            return null;
+        }
+
+        $extension = strtolower(pathinfo($sourcePath, PATHINFO_EXTENSION));
+        $image = $this->loadImage($sourcePath, $extension);
+        if ($image === false) {
+            return null;
+        }
+
+        $sourceWidth = imagesx($image);
+        $sourceHeight = imagesy($image);
+        $targetWidth = min($maxWidth, $sourceWidth);
+        $targetHeight = (int) round($sourceHeight * ($targetWidth / $sourceWidth));
+        $optimized = $this->resize($image, $targetWidth, $targetHeight);
+        $optimizedPath = preg_replace('/\.[^.]+$/', '.webp', $path) ?: $path . '.webp';
+        $targetPath = $disk->path($optimizedPath);
+
+        if (! is_dir(dirname($targetPath))) {
+            mkdir(dirname($targetPath), 0755, true);
+        }
+
+        $temporaryTargetPath = $targetPath . '.tmp';
+        $saved = imagewebp($optimized, $temporaryTargetPath, $quality);
+        imagedestroy($optimized);
+        imagedestroy($image);
+
+        if (! $saved) {
+            return null;
+        }
+
+        rename($temporaryTargetPath, $targetPath);
+
+        if ($optimizedPath !== $path) {
+            $disk->delete($path);
+        }
+
+        return $optimizedPath;
+    }
+
+    public function thumbnailUrl(string $path, string $diskName = 'public', int $width = 480): ?string
+    {
+        $disk = Storage::disk($diskName);
         $source = $disk->path($path);
 
         if (! is_file($source)) {
@@ -16,7 +61,7 @@ class ArtworkMediaService
         }
 
         $extension = strtolower(pathinfo($source, PATHINFO_EXTENSION));
-        if (! in_array($extension, ['jpg', 'jpeg', 'png', 'webp'], true)) {
+        if ($extension !== 'webp') {
             return null;
         }
 
@@ -27,7 +72,29 @@ class ArtworkMediaService
             $this->createThumbnail($source, $disk->path($thumbnailPath), $width, $extension);
         }
 
-        return $disk->exists($thumbnailPath) ? '/storage/' . $thumbnailPath : null;
+        return $diskName === 'public' && $disk->exists($thumbnailPath)
+            ? '/storage/' . $thumbnailPath
+            : null;
+    }
+
+    private function loadImage(string $source, string $extension): \GdImage|false
+    {
+        return match ($extension) {
+            'jpg', 'jpeg' => imagecreatefromjpeg($source),
+            'png' => imagecreatefrompng($source),
+            'webp' => imagecreatefromwebp($source),
+            default => false,
+        };
+    }
+
+    private function resize(\GdImage $image, int $width, int $height): \GdImage
+    {
+        $resized = imagecreatetruecolor($width, $height);
+        imagealphablending($resized, false);
+        imagesavealpha($resized, true);
+        imagecopyresampled($resized, $image, 0, 0, 0, 0, $width, $height, imagesx($image), imagesy($image));
+
+        return $resized;
     }
 
     private function createThumbnail(string $source, string $target, int $width, string $extension): void
@@ -37,12 +104,7 @@ class ArtworkMediaService
             return;
         }
 
-        $image = match ($extension) {
-            'jpg', 'jpeg' => imagecreatefromjpeg($source),
-            'png' => imagecreatefrompng($source),
-            'webp' => imagecreatefromwebp($source),
-            default => false,
-        };
+        $image = $this->loadImage($source, $extension);
 
         if ($image === false) {
             return;
